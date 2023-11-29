@@ -31,7 +31,7 @@ MqttClient mqttClient(wifiClient);
 const char broker[] = "tfe.iotwan.se";
 int        port     = 1883;
 char* send_topic  = "JD/controller";
-char* receive_topic = "JD"; 
+char* receive_topic = "JD/vehicle"; 
 #define mqtt_username "intro23"
 #define mqtt_password "outro"
 
@@ -52,8 +52,6 @@ void setup()
 
 void loop()
 {
-  //esp_task_wdt_reset();
-  write_mqtt(mqttClient, send_topic, "tjena");
   read_mqtt(mqttClient);
 }
 
@@ -112,11 +110,14 @@ void read_mqtt(MqttClient mqttClient)
     Serial.print("', length ");
     Serial.print(messageSize);
     Serial.println(" bytes:");
-  
-     while (mqttClient.available()) 
-     {
-        Serial.print((char)mqttClient.read());
-     }
+    
+    byte message;
+    while (mqttClient.available()) 
+    {
+       message = mqttClient.read();
+       Serial.print((char)message);
+       uart_Tx(message);
+    }
   }
 }
 
