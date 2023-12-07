@@ -11,18 +11,20 @@ void setup();
 void loop();
 void connectToWiFi();
 void mqttConnect();
-void write_mqtt(MqttClient mqttClient, char* topic, const char* data);
-void read_mqtt(MqttClient mqttClient);
+void write_mqtt(MqttClient mqttClient, const char* topic, char* data);
+void onMqttMessage(int messageSize);
 
 
 void uart_init();
-void uart_Tx(const char* data);
+void uart_Tx(const char data);
 char uart_Rx();
-void uart_Rx_to_broker(char* messageBuffer);
+void uart_Rx_to_Tx_broker(char* messageBuffer);
 
 #define BUFFER_SIZE 8
 char messageBuffer[BUFFER_SIZE];
 uint8_t uart_Rx_index = 0;
+
+void destroy(char* buffer);
 
   
 
@@ -35,8 +37,8 @@ WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
 const char broker[] = "tfe.iotwan.se";
 int        port     = 1883;
-char* send_topic  = "JD/sensor";
-char* receive_topic = "JD/joystick"; 
+const char send_topic[]  = "JD/sensor";
+const char receive_topic[] = "JD/joystick"; 
 #define mqtt_username "intro23"
 #define mqtt_password "outro"
 
@@ -51,23 +53,41 @@ void setup()
   uart_init();
   connectToWiFi();
   mqttConnect();
-  mqttClient.subscribe(receive_topic);
 
-  uart_Tx("Setup Done\n\r");
+  //uart_Tx("F:N:N\n\r");
 }
 
 void loop()
 {
-  mqttClient.poll();
-
-  uart_Rx_to_broker(messageBuffer);
-  read_mqtt(mqttClient);
-
-
-  if(WiFi.status() != WL_CONNECTED || !mqttClient.connect(broker, port)) 
+  if (!mqttClient.connected())
+  {
+    mqttConnect();
+  }
+  else if (WiFi.status() != WL_CONNECTED)
   {
     ESP.restart();
   }
+  uart_Rx_to_Tx_broker(messageBuffer);
+  mqttClient.poll();
+}
+
+void onMqttMessage(int messageSize) {
+  // we received a message, print out the topic and contents
+  Serial.println("Received a message with topic '");
+  Serial.print(mqttClient.messageTopic());
+  Serial.print("', length ");
+  Serial.print(messageSize);
+  Serial.println(" bytes:");
+
+  // use the Stream interface to print the contents
+  while (mqttClient.available()) 
+  {
+    //Serial.print((char)mqttClient.read());
+    uart_Tx((char)mqttClient.read());
+  }
+  Serial.println();
+
+  Serial.println();
 }
 
 void connectToWiFi()
@@ -109,9 +129,12 @@ void mqttConnect()
   }
 
   Serial.println("You're connected to the MQTT broker!\n");
+
+  mqttClient.onMessage(onMqttMessage); 
+  mqttClient.subscribe(receive_topic);
 }
 
-void write_mqtt(MqttClient mqttClient, char* topic, const char* data)
+void write_mqtt(MqttClient mqttClient, const char* topic, char* data)
 {
   mqttClient.beginMessage(topic);
   mqttClient.print(data);
@@ -120,47 +143,31 @@ void write_mqtt(MqttClient mqttClient, char* topic, const char* data)
   Serial.println(data);
 }
 
-void read_mqtt(MqttClient mqttClient)
-{
-  int messageSize = mqttClient.parseMessage();
-  if (messageSize) 
-  {
-    char message;
-    while (mqttClient.available()) 
-    {
-      message = mqttClient.read();
-      Serial.print(message);
-      uart_Tx((char*)message);
-    }
-  }
-}
-
 void uart_init()
 {
-  Serial1.begin(38400, SERIAL_8N1, Rx, Tx);
+  Serial2.begin(38400, SERIAL_8N1, Rx, Tx);
 }
 
-void uart_Tx(const char* data)
+void uart_Tx(const char data)
 {
-  Serial1.print(data);
-  Serial1.print('&');
-  Serial1.flush();
+  Serial2.print(data);
+  Serial2.flush();
 
-  Serial.println(data);
+  Serial.print(data);
 }
 
 char uart_Rx()
 {
   char incomingByte = 0;
-  if (Serial1.available() > 0) 
+  if (Serial2.available() > 0) 
   {
-    incomingByte = Serial1.read();
+    incomingByte = Serial2.read();
   }
 
   return incomingByte;
 }
 
-void uart_Rx_to_broker(char* messageBuffer)
+void uart_Rx_to_Tx_broker(char* messageBuffer)
 {
   char data;
   do
@@ -188,4 +195,10 @@ void uart_Rx_to_broker(char* messageBuffer)
   } while(uart_Rx_index >= BUFFER_SIZE - 1);
 }
 
-
+void destroy(char* buffer)
+{
+  for(int i = 0; i<strlen(buffer); i++)
+  {
+    buffer[i] = ' ';
+  }
+}
