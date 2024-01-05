@@ -54,7 +54,7 @@ void setup()
   connectToWiFi();
   mqttConnect();
 
-  //uart_Tx("F:N:N\n\r");
+  write_mqtt(mqttClient, "JD/setupD", "Setup Done bil ESP");
 }
 
 void loop()
@@ -65,27 +65,22 @@ void loop()
   }
   else if (WiFi.status() != WL_CONNECTED)
   {
-    ESP.restart();
+    connectToWiFi();
   }
+
+  //write_mqtt(mqttClient, "JD/online", "1&");
   uart_Rx_to_Tx_broker(messageBuffer);
   mqttClient.poll();
 }
 
-void onMqttMessage(int messageSize) {
-  // we received a message, print out the topic and contents
-  Serial.println("Received a message with topic '");
-  Serial.print(mqttClient.messageTopic());
-  Serial.print("', length ");
-  Serial.print(messageSize);
-  Serial.println(" bytes:");
-
+void onMqttMessage(int messageSize) 
+{
   // use the Stream interface to print the contents
   while (mqttClient.available()) 
   {
     //Serial.print((char)mqttClient.read());
     uart_Tx((char)mqttClient.read());
   }
-  Serial.println();
 
   Serial.println();
 }
@@ -93,6 +88,7 @@ void onMqttMessage(int messageSize) {
 void connectToWiFi()
 {
   // attempt to connect to WiFi network:
+  write_mqtt(mqttClient, "JD/setupD", "Lost network bil");
   Serial.print("Attempting to connect to WiFi SSID: ");
   Serial.println(ssid);
 
@@ -109,7 +105,9 @@ void connectToWiFi()
     delay(1000);
   }
 
+   write_mqtt(mqttClient, "JD/setupD", "Connected to network bil");
   Serial.println("You're connected to the network\n");
+
 }
 
 void mqttConnect()
@@ -119,6 +117,7 @@ void mqttConnect()
 
   Serial.print("Attempting to connect to the MQTT broker: ");
   Serial.println(broker);
+  write_mqtt(mqttClient, "JD/setupD", "Attempting to connect to broker bil");
 
   if (!mqttClient.connect(broker, port)) 
   {
@@ -130,6 +129,9 @@ void mqttConnect()
 
   Serial.println("You're connected to the MQTT broker!\n");
 
+  
+  write_mqtt(mqttClient, "JD/setupD","Connected to broker bil");
+  //uart_Tx("Connected to the broker");
   mqttClient.onMessage(onMqttMessage); 
   mqttClient.subscribe(receive_topic);
 }
@@ -138,6 +140,7 @@ void write_mqtt(MqttClient mqttClient, const char* topic, char* data)
 {
   mqttClient.beginMessage(topic);
   mqttClient.print(data);
+  
   mqttClient.endMessage();
 
   Serial.println(data);
